@@ -36,7 +36,6 @@ func main() {
 		log.Fatalf("Failed to load config: %v", err)
 	}
 
-	// Initialize GORM database
 	db, err := initGormDatabase(cfg)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -48,22 +47,21 @@ func main() {
 	}
 	defer redisClient.Close()
 
-	// Initialize repositories
+	// setup repos
 	eventRepo := repository.NewEventRepository(db)
 	userRepo := repository.NewUserRepository(db)
 	bookingRepo := repository.NewBookingRepository(db)
 
-	// Initialize services
+	// setup services
 	eventService := service.NewEventService(eventRepo)
 	userService := service.NewUserService(userRepo)
 	bookingService := service.NewBookingService(bookingRepo, eventRepo, db, cfg.BookingTimeoutMinutes)
 
-	// Initialize handlers
+	// setup handlers
 	eventHandler := handler.NewEventHandler(eventService)
 	userHandler := handler.NewUserHandler(userService)
 	bookingHandler := handler.NewBookingHandler(bookingService)
 
-	// Initialize router
 	router := routes.NewRouter(userHandler, eventHandler, bookingHandler)
 
 	app := fiber.New(fiber.Config{
@@ -77,7 +75,7 @@ func main() {
 	
 	router.Setup(app)
 
-	// Start background worker for expired bookings
+	// background worker for expired bookings
 	go startBookingWorker(bookingService)
 
 	go gracefulShutdown(app, db, redisClient)
@@ -96,7 +94,7 @@ func initGormDatabase(cfg *config.Config) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	// Auto migrate
+	// auto migrate - TODO: use proper migrations in production
 	if err := db.AutoMigrate(&models.Event{}, &models.User{}, &models.Booking{}); err != nil {
 		return nil, err
 	}
@@ -144,6 +142,7 @@ func startBookingWorker(bookingService service.BookingService) {
 
 	for range ticker.C {
 		ctx := context.Background()
+		// TODO: maybe use a queue system like Redis for this instead of polling
 		if err := bookingService.ProcessExpiredBookings(ctx); err != nil {
 			log.Printf("Error processing expired bookings: %v", err)
 		}
@@ -185,8 +184,8 @@ func customErrorHandler(c *fiber.Ctx, err error) error {
 	log.Printf("Error: %v | %s %s", err, c.Method(), c.Path())
 
 	return c.Status(code).JSON(fiber.Map{
-		"error":   message,
-		"status":  code,
+		"error":  message,
+		"status": code,
 	})
 }
 

@@ -35,23 +35,20 @@ func (s *bookingService) CreateBooking(ctx context.Context, userID int, req *mod
 	var booking *models.Booking
 	
 	err := s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Lock event row
 		event, err := s.eventRepo.LockForUpdate(ctx, req.EventID)
 		if err != nil {
 			return fmt.Errorf("event not found")
 		}
 
-		// Check availability
+		// TODO: add caching for event data to reduce DB load
 		if event.TotalTickets < req.TicketCount {
 			return fmt.Errorf("not enough tickets available. Only %d tickets left", event.TotalTickets)
 		}
 
-		// Decrement tickets
 		if err := s.eventRepo.DecrementTickets(ctx, req.EventID, req.TicketCount); err != nil {
 			return err
 		}
 
-		// Create booking
 		booking = &models.Booking{
 			UserID:      userID,
 			EventID:     req.EventID,
@@ -82,7 +79,7 @@ func (s *bookingService) GetBooking(ctx context.Context, id int) (*models.Bookin
 func (s *bookingService) GetUserBookings(ctx context.Context, userID int) ([]*models.Booking, error) {
 	bookings, err := s.bookingRepo.GetByUserID(ctx, userID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get user bookings: %w", err)
+		return nil, fmt.Errorf("can't get user bookings: %w", err)
 	}
 	return bookings, nil
 }
@@ -123,12 +120,11 @@ func (s *bookingService) CancelBooking(ctx context.Context, bookingID int) error
 	}
 
 	return s.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		// Update booking status
 		if err := s.bookingRepo.UpdateStatus(ctx, bookingID, models.BookingStatusCancelled); err != nil {
 			return fmt.Errorf("failed to cancel booking: %w", err)
 		}
 
-		// Release tickets back to event
+		// restore tickets
 		if err := s.eventRepo.IncrementTickets(ctx, booking.EventID, booking.TicketCount); err != nil {
 			return fmt.Errorf("failed to release tickets: %w", err)
 		}
@@ -140,12 +136,12 @@ func (s *bookingService) CancelBooking(ctx context.Context, bookingID int) error
 func (s *bookingService) ProcessExpiredBookings(ctx context.Context) error {
 	expiredBookings, err := s.bookingRepo.GetExpiredPending(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to get expired bookings: %w", err)
+		return fmt.Errorf("can't fetch expired bookings: %w", err)
 	}
 
 	for _, booking := range expiredBookings {
 		if err := s.CancelBooking(ctx, booking.ID); err != nil {
-			// Log error but continue processing
+			// log and continue - don't want one failure to stop the whole job
 			fmt.Printf("Failed to cancel expired booking %d: %v\n", booking.ID, err)
 		}
 	}

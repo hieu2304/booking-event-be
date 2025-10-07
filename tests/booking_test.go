@@ -29,7 +29,6 @@ func setupTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-// Test 1: Create booking successfully
 func TestCreateBooking_Success(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
@@ -39,7 +38,7 @@ func TestCreateBooking_Success(t *testing.T) {
 	userRepo := repository.NewUserRepository(db)
 	bookingService := service.NewBookingService(bookingRepo, eventRepo, db, 15)
 
-	// Setup
+	// setup test data
 	event := &models.Event{
 		Name:         "Concert",
 		DateTime:     time.Now().Add(24 * time.Hour),
@@ -51,21 +50,18 @@ func TestCreateBooking_Success(t *testing.T) {
 	user := &models.User{Name: "John", Email: "john@test.com"}
 	require.NoError(t, userRepo.Create(ctx, user))
 
-	// Test
 	req := &models.CreateBookingRequest{
 		EventID:     event.ID,
 		TicketCount: 2,
 	}
 	booking, err := bookingService.CreateBooking(ctx, user.ID, req)
 
-	// Assert
 	assert.NoError(t, err)
 	assert.NotNil(t, booking)
 	assert.Equal(t, 2, booking.TicketCount)
 	assert.Equal(t, 100.0, booking.TotalPrice)
 }
 
-// Test 2: Cannot book more tickets than available  
 func TestCreateBooking_InsufficientTickets(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
@@ -97,7 +93,6 @@ func TestCreateBooking_InsufficientTickets(t *testing.T) {
 	assert.Nil(t, booking)
 }
 
-// Test 3: Cancel pending booking
 func TestCancelBooking_Success(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
@@ -132,7 +127,6 @@ func TestCancelBooking_Success(t *testing.T) {
 	assert.Equal(t, models.BookingStatusCancelled, cancelled.Status)
 }
 
-// Test 4: Concurrent booking test
 func TestConcurrentBookings(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
@@ -150,7 +144,7 @@ func TestConcurrentBookings(t *testing.T) {
 	}
 	eventRepo.Create(ctx, event)
 
-	// Create users
+	// create test users
 	numUsers := 15
 	users := make([]*models.User, numUsers)
 	for i := 0; i < numUsers; i++ {
@@ -162,7 +156,6 @@ func TestConcurrentBookings(t *testing.T) {
 		users[i] = user
 	}
 
-	// Concurrent bookings
 	var wg sync.WaitGroup
 	results := make([]error, numUsers)
 
@@ -181,7 +174,6 @@ func TestConcurrentBookings(t *testing.T) {
 
 	wg.Wait()
 
-	// Count successes
 	successCount := 0
 	for _, err := range results {
 		if err == nil {
@@ -189,12 +181,11 @@ func TestConcurrentBookings(t *testing.T) {
 		}
 	}
 
-	// At most 10 should succeed
+	// max 10 should succeed
 	assert.LessOrEqual(t, successCount, 10, "Cannot book more than available tickets")
 	assert.Greater(t, successCount, 0, "At least some bookings should succeed")
 }
 
-// Test 5: Create event (bonus test)
 func TestCreateEvent(t *testing.T) {
 	db := setupTestDB(t)
 	ctx := context.Background()
@@ -217,4 +208,3 @@ func TestCreateEvent(t *testing.T) {
 	assert.Equal(t, "Music Festival", event.Name)
 	assert.Equal(t, 5000, event.TotalTickets)
 }
-
