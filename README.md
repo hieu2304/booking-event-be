@@ -1,14 +1,5 @@
 # Event Booking API
 
-## Getting Started
-
-### Prerequisites
-
-- Go 1.21+
-- PostgreSQL 15+
-- Redis 7+
-- Docker & Docker Compose (optional)
-
 ### Installation
 
 1. **Clone the repository**
@@ -124,14 +115,3 @@ docker-compose down
 ```bash
 make docker-logs
 ```
-
-
-## Architecture
-
-This project follows Clean Architecture principles with clear separation of concerns:
-
-- **Models Layer**: GORM entities and DTOs
-- **Repository Layer**: Database operations (CRUD)
-- **Service Layer**: Business logic and transactions
-- **Handler Layer**: HTTP request/response handling
-- **Middleware Layer**: Authentication, logging, error handling
